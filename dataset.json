@@ -1,0 +1,42 @@
+[
+  {
+    "question": "What is the exploration-exploitation trade-off in reinforcement learning?",
+    "answer": "The exploration-exploitation trade-off in reinforcement learning refers to the dilemma an agent faces between exploring new actions to discover their potential rewards (exploration) and leveraging known actions that have yielded high rewards in the past (exploitation). Balancing this trade-off is crucial to maximize cumulative reward over time.",
+    "difficulty": "Medium",
+    "topic": "reinforcement learning",
+    "id": 0,
+    "rating": 0,
+    "comments": "",
+    "quality_score": 6
+  },
+  {
+    "question": "What is the main difference between reinforcement learning and supervised learning?",
+    "answer": "The main difference is that in reinforcement learning, an agent learns to make decisions by receiving rewards or penalties from interactions with the environment, without explicit labeled input-output pairs, whereas supervised learning relies on labeled datasets to learn a mapping from inputs to outputs.",
+    "difficulty": "medium",
+    "topic": "reinforcement learning",
+    "id": 1,
+    "rating": 0,
+    "comments": "",
+    "quality_score": 6
+  },
+  {
+    "question": "What is supervised learning in machine learning, and how does it differ from unsupervised learning?",
+    "answer": "Supervised learning is a type of machine learning where a model is trained on labeled data, meaning each training example is paired with an output label. The model learns to map inputs to the correct output by minimizing the difference between its predictions and the actual labels. In contrast, unsupervised learning deals with unlabeled data and aims to find patterns or structure without explicit guidance on what the output should be.",
+    "difficulty": "easy",
+    "topic": "supervised learning",
+    "id": 2,
+    "rating": 0,
+    "comments": "",
+    "quality_score": 6
+  },
+  {
+    "question": "What is the main difference between reinforcement learning and supervised learning?",
+    "answer": "The main difference is that in reinforcement learning, an agent learns to make decisions by receiving rewards or penalties from interactions with the environment, without explicit input-output pairs. In supervised learning, the model learns from labeled data with known input-output pairs.",
+    "difficulty": "medium",
+    "topic": "reinforcement learning",
+    "id": 3,
+    "rating": 0,
+    "comments": "",
+    "quality_score": 6
+  }
+]
