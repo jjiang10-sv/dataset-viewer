@@ -1,0 +1,260 @@
+.dataset-viewer {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+}
+
+.loading, .error {
+  text-align: center;
+  padding: 20px;
+  font-size: 18px;
+}
+
+.error {
+  color: #d32f2f;
+  background-color: #ffebee;
+  border: 1px solid #ffcdd2;
+  border-radius: 4px;
+}
+
+.table-container {
+  margin: 20px 0;
+  overflow-x: auto;
+}
+
+.dataset-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+  table-layout: auto;
+}
+
+.dataset-table th,
+.dataset-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.dataset-table th {
+  background-color: #f2f2f2;
+  font-weight: bold;
+}
+
+.dataset-table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.dataset-table tr:hover {
+  background-color: #f5f5f5;
+}
+
+/* Star Rating Styles */
+.star-rating {
+  margin: 20px 0;
+}
+
+.star-rating input[type="radio"] {
+  position: absolute;
+  left: -9999px;
+}
+
+.star-label {
+  display: inline-block;
+  cursor: pointer;
+  padding: 5px;
+  margin: 0 2px;
+  font-size: 20px;
+  color: #ddd;
+  transition: color 0.2s;
+}
+
+.star-label:before {
+  content: '★';
+}
+
+.star-rating input[type="radio"]:checked ~ .star-label,
+.star-rating input[type="radio"]:checked ~ .star-label ~ .star-label {
+  color: #ffc107;
+}
+
+.star-rating .star-label:hover,
+.star-rating .star-label:hover ~ .star-label {
+  color: #ffc107;
+}
+
+.input-no-rate {
+  display: none;
+}
+
+/* Comments section */
+#disqus_thread {
+  margin-top: 20px;
+}
+
+.rating-cell {
+  min-width: 250px;
+  padding: 8px;
+}
+
+.row-rating {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.star-rating-inline {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.star-label-inline {
+  cursor: pointer;
+  position: relative;
+}
+
+.star-label-inline input[type="radio"] {
+  display: none;
+}
+
+.star-icon {
+  font-size: 20px;
+  transition: all 0.2s ease;
+  display: inline-block;
+  user-select: none;
+}
+
+.star-icon.empty {
+  color: #ddd;
+}
+
+.star-icon.filled {
+  color: #ffd700;
+}
+
+.star-label-inline:hover .star-icon.empty {
+  color: #ffb400;
+  transform: scale(1.1);
+}
+
+.star-label-inline:hover .star-icon.filled {
+  transform: scale(1.1);
+}
+
+.comment-input {
+  width: 100%;
+  min-width: 200px;
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.submit-rating-btn {
+  padding: 4px 12px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s;
+}
+
+.submit-rating-btn:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+
+.submit-rating-btn:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+} 
+
+.pagination-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 20px 0;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+  }
+  
+  .pagination-controls.bottom {
+    justify-content: center;
+  }
+  
+  .pagination-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-size: 14px;
+    color: #6c757d;
+  }
+  
+  .items-per-page-select {
+    padding: 5px 10px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    background-color: white;
+    font-size: 14px;
+  }
+  
+  .pagination-buttons {
+    display: flex;
+    gap: 5px;
+  }
+  
+  .pagination-btn {
+    padding: 8px 12px;
+    border: 1px solid #dee2e6;
+    background-color: white;
+    color: #495057;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+  }
+  
+  .pagination-btn:hover:not(:disabled) {
+    background-color: #e9ecef;
+    border-color: #adb5bd;
+  }
+  
+  .pagination-btn:disabled {
+    background-color: #f8f9fa;
+    color: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+  
+  .pagination-btn.active {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+  }
+  
+  .pagination-btn.active:hover {
+    background-color: #0056b3;
+    border-color: #0056b3;
+  }
+  
+  @media (max-width: 768px) {
+    .pagination-controls {
+      flex-direction: column;
+      gap: 15px;
+    }
+    
+    .pagination-buttons {
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    
+    .pagination-btn {
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+  }
