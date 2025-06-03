@@ -5,9 +5,9 @@
     "difficulty": "Medium",
     "topic": "reinforcement learning",
     "id": 0,
-    "rating": 0,
-    "comments": "",
-    "quality_score": 6
+    "rating": 4,
+    "quality_score": 6,
+    "comment": "xcxc"
   },
   {
     "question": "What is the main difference between reinforcement learning and supervised learning?",
@@ -15,9 +15,9 @@
     "difficulty": "medium",
     "topic": "reinforcement learning",
     "id": 1,
-    "rating": 0,
-    "comments": "",
-    "quality_score": 6
+    "rating": 4,
+    "quality_score": 6,
+    "comment": "kfhdaksjhfadhigkdjfngkjdk"
   },
   {
     "question": "What is supervised learning in machine learning, and how does it differ from unsupervised learning?",
@@ -25,9 +25,9 @@
     "difficulty": "easy",
     "topic": "supervised learning",
     "id": 2,
-    "rating": 0,
-    "comments": "",
-    "quality_score": 6
+    "rating": 2,
+    "quality_score": 6,
+    "comment": "afdalfkjadlkfjkdjh"
   },
   {
     "question": "What is the main difference between reinforcement learning and supervised learning?",
@@ -35,8 +35,168 @@
     "difficulty": "medium",
     "topic": "reinforcement learning",
     "id": 3,
-    "rating": 0,
-    "comments": "",
-    "quality_score": 6
+    "rating": 4,
+    "quality_score": 6,
+    "comment": "lkasjfkasdfkjasdfkasd"
+  },
+  {
+    "question": "What is overfitting in machine learning and how can it be prevented?",
+    "answer": "Overfitting occurs when a model learns the training data too well, including noise and irrelevant patterns, resulting in poor performance on new, unseen data. It can be prevented through techniques like cross-validation, regularization, early stopping, dropout, and using more training data.",
+    "difficulty": "medium",
+    "topic": "machine learning fundamentals",
+    "id": 4,
+    "rating": 4,
+    "quality_score": 7,
+    "comment": "xcvzxcvzxc"
+  },
+  {
+    "question": "What is the difference between classification and regression?",
+    "answer": "Classification is a supervised learning task where the goal is to predict discrete categories or classes, while regression predicts continuous numerical values. For example, predicting whether an email is spam (classification) vs. predicting house prices (regression).",
+    "difficulty": "easy",
+    "topic": "supervised learning",
+    "id": 5,
+    "rating": 5,
+    "quality_score": 8,
+    "comment": "XcXcxvcx"
+  },
+  {
+    "question": "What is a neural network and how does it work?",
+    "answer": "A neural network is a computational model inspired by biological neural networks. It consists of interconnected nodes (neurons) organized in layers. Each connection has a weight, and neurons apply activation functions to weighted inputs. The network learns by adjusting weights through backpropagation to minimize prediction errors.",
+    "difficulty": "medium",
+    "topic": "deep learning",
+    "id": 6,
+    "rating": 4,
+    "quality_score": 7,
+    "comment": ""
+  },
+  {
+    "question": "What is cross-validation and why is it important?",
+    "answer": "Cross-validation is a technique for assessing how well a model generalizes to unseen data by partitioning the dataset into multiple folds, training on some folds and testing on others. It's important because it provides a more robust estimate of model performance and helps detect overfitting.",
+    "difficulty": "medium",
+    "topic": "model evaluation",
+    "id": 7,
+    "rating": 4,
+    "quality_score": 7,
+    "comment": "zxcvzxcvzxc"
+  },
+  {
+    "question": "What is the bias-variance tradeoff?",
+    "answer": "The bias-variance tradeoff describes the relationship between a model's ability to minimize bias (error from oversimplifying assumptions) and variance (error from sensitivity to small fluctuations in training data). High bias leads to underfitting, high variance leads to overfitting. The goal is to find the optimal balance.",
+    "difficulty": "hard",
+    "topic": "machine learning fundamentals",
+    "id": 8,
+    "rating": 3,
+    "quality_score": 6,
+    "comment": ""
+  },
+  {
+    "question": "What is gradient descent?",
+    "answer": "Gradient descent is an optimization algorithm used to minimize a cost function by iteratively moving in the direction of steepest descent (negative gradient). It's fundamental to training machine learning models, particularly neural networks, by finding optimal parameter values.",
+    "difficulty": "medium",
+    "topic": "optimization",
+    "id": 9,
+    "rating": 4,
+    "quality_score": 7,
+    "comment": "cxvzxcvzxcv"
+  },
+  {
+    "question": "What is the difference between bagging and boosting?",
+    "answer": "Bagging (Bootstrap Aggregating) trains multiple models in parallel on different subsets of data and averages their predictions to reduce variance. Boosting trains models sequentially, where each model learns from the mistakes of previous ones, focusing on reducing bias. Random Forest uses bagging, while AdaBoost uses boosting.",
+    "difficulty": "hard",
+    "topic": "ensemble methods",
+    "id": 10,
+    "rating": 3,
+    "quality_score": 6,
+    "comment": ""
+  },
+  {
+    "question": "What is feature engineering?",
+    "answer": "Feature engineering is the process of selecting, modifying, or creating features (input variables) from raw data to improve machine learning model performance. It includes techniques like normalization, encoding categorical variables, creating interaction terms, and dimensionality reduction.",
+    "difficulty": "medium",
+    "topic": "data preprocessing",
+    "id": 11,
+    "rating": 4,
+    "quality_score": 7,
+    "comment": "zxcvzxcv"
+  },
+  {
+    "question": "What is regularization in machine learning?",
+    "answer": "Regularization is a technique to prevent overfitting by adding a penalty term to the loss function that discourages complex models. Common types include L1 regularization (Lasso) which promotes sparsity, and L2 regularization (Ridge) which shrinks coefficients toward zero.",
+    "difficulty": "medium",
+    "topic": "machine learning fundamentals",
+    "id": 12,
+    "rating": 4,
+    "quality_score": 7,
+    "comment": ""
+  },
+  {
+    "question": "What is the curse of dimensionality?",
+    "answer": "The curse of dimensionality refers to various phenomena that arise when analyzing data in high-dimensional spaces. As dimensions increase, data becomes sparse, distances between points become similar, and the volume of the space increases exponentially, making many algorithms less effective.",
+    "difficulty": "hard",
+    "topic": "machine learning fundamentals",
+    "id": 13,
+    "rating": 3,
+    "quality_score": 6,
+    "comment": ""
+  },
+  {
+    "question": "What is Principal Component Analysis (PCA)?",
+    "answer": "PCA is a dimensionality reduction technique that transforms data to a lower-dimensional space while preserving as much variance as possible. It finds principal components (linear combinations of original features) that capture the most variation in the data, useful for visualization and reducing computational complexity.",
+    "difficulty": "medium",
+    "topic": "dimensionality reduction",
+    "id": 14,
+    "rating": 4,
+    "quality_score": 7,
+    "comment": ""
+  },
+  {
+    "question": "What is k-means clustering?",
+    "answer": "K-means is an unsupervised learning algorithm that partitions data into k clusters by minimizing the within-cluster sum of squares. It iteratively assigns points to the nearest centroid and updates centroids until convergence. It's simple but assumes spherical clusters and requires specifying k in advance.",
+    "difficulty": "easy",
+    "topic": "unsupervised learning",
+    "id": 15,
+    "rating": 5,
+    "quality_score": 8,
+    "comment": ""
+  },
+  {
+    "question": "What is the difference between precision and recall?",
+    "answer": "Precision is the ratio of true positives to all predicted positives (TP/(TP+FP)), measuring how many selected items are relevant. Recall is the ratio of true positives to all actual positives (TP/(TP+FN)), measuring how many relevant items are selected. There's often a tradeoff between them.",
+    "difficulty": "medium",
+    "topic": "model evaluation",
+    "id": 16,
+    "rating": 4,
+    "quality_score": 7,
+    "comment": ""
+  },
+  {
+    "question": "What is a decision tree and how does it work?",
+    "answer": "A decision tree is a supervised learning algorithm that makes predictions by learning simple decision rules inferred from data features. It splits data based on feature values that best separate classes or reduce variance, creating a tree-like model of decisions that's easy to interpret and visualize.",
+    "difficulty": "easy",
+    "topic": "supervised learning",
+    "id": 17,
+    "rating": 5,
+    "quality_score": 8,
+    "comment": ""
+  },
+  {
+    "question": "What is the difference between batch gradient descent and stochastic gradient descent?",
+    "answer": "Batch gradient descent computes gradients using the entire training dataset, providing stable but slow convergence. Stochastic gradient descent (SGD) uses one sample at a time, making it faster but noisier. Mini-batch gradient descent is a compromise, using small batches for balanced speed and stability.",
+    "difficulty": "medium",
+    "topic": "optimization",
+    "id": 18,
+    "rating": 4,
+    "quality_score": 7,
+    "comment": ""
+  },
+  {
+    "question": "What is transfer learning?",
+    "answer": "Transfer learning is a technique where a model trained on one task is adapted for a related task. Instead of training from scratch, it leverages knowledge from pre-trained models, especially useful in deep learning where models trained on large datasets can be fine-tuned for specific applications with limited data.",
+    "difficulty": "medium",
+    "topic": "deep learning",
+    "id": 19,
+    "rating": 4,
+    "quality_score": 7,
+    "comment": ""
   }
 ]
