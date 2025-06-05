@@ -194,9 +194,10 @@ const DatasetViewer: React.FC = () => {
 
       // Save to backend via FastAPI
       // Determine the backend URL
-      const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
-      
-      const response = await fetch(`${backendUrl}/api/dataset/save`, {
+      //const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+      //api/dataset/save
+      const backendUrl = 'https://e7zf4xjf2k.execute-api.us-east-1.amazonaws.com/prod';
+      const response = await fetch(`${backendUrl}/v1/saveDataset`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
