@@ -191,41 +191,12 @@ const VirtualizedDatasetViewer: React.FC<VirtualizedDatasetViewerProps> = ({
     }
   }, [baseUrl, streamingProgress.totalChunks]);
 
-  // Load specific chunk
-  const loadChunk = useCallback(async (chunkIndex: number, chunkSize: number = 1000) => {
-    setLoading(true);
-    
-    try {
-      const response = await fetch(`${baseUrl}/v1/dataset/chunk/${chunkIndex}?chunk_size=${chunkSize}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      setDataset(result.data);
-      
-      // Update pagination info based on chunk
-      setPagination({
-        currentPage: chunkIndex + 1,
-        pageSize: chunkSize,
-        total: result.total_records,
-        totalPages: Math.ceil(result.total_records / chunkSize),
-        hasNext: result.end_idx < result.total_records,
-        hasPrevious: chunkIndex > 0
-      });
-
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load chunk');
-    } finally {
-      setLoading(false);
-    }
-  }, [baseUrl]);
+  // Note: loadChunk functionality can be added later if needed for manual chunk loading
 
   // Effect to fetch data when parameters change
   useEffect(() => {
     fetchPaginatedData(1, pagination.pageSize, debouncedSearchTerm, sortBy, sortOrder);
-  }, [debouncedSearchTerm, sortBy, sortOrder, fetchPaginatedData]);
+  }, [debouncedSearchTerm, sortBy, sortOrder, fetchPaginatedData, pagination.pageSize]);
 
   // Handle pagination
   const handlePageChange = useCallback((newPage: number) => {

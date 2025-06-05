@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './DatasetViewer.css';
+//import DatasetCodeTester from './components/DatasetCodeTester';
 
 interface DatasetRow {
   id: string | number;
@@ -27,6 +28,15 @@ interface GiscusConfig {
   loading?: string;
 }
 
+// API Configuration
+interface ApiConfig {
+  baseUrl: string;
+  endpoint: string;
+  headers?: Record<string, string>;
+  method?: 'GET' | 'POST';
+  body?: any;
+}
+
 declare global {
   interface Window {
     giscus?: {
@@ -47,18 +57,146 @@ const DatasetViewer: React.FC = () => {
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(5);
+  const apiBaseUrl = 'https://e7zf4xjf2k.execute-api.us-east-1.amazonaws.com/prod';
+
+  // Extract code from URL parameters
+  const getCodeFromUrl = (): string => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const codeFromQuery = urlParams.get('code');
+    
+    // Also check hash parameters (for URLs like example.com#code=123)
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const codeFromHash = hashParams.get('code');
+    
+    // Also check path parameters (for URLs like example.com/dataset/123)
+    const pathSegments = window.location.pathname.split('/');
+    const codeFromPath = pathSegments[pathSegments.length - 1];
+    
+    // Priority: query param > hash param > path param > default
+    return codeFromQuery || codeFromHash || (codeFromPath !== 'dataset-viewer' && codeFromPath !== '' ? codeFromPath : '1234567890');
+  };
+
+  // API Configuration - you can customize these values
+  const apiConfig = (): ApiConfig => {
+    // Priority: Environment variables > URL parameter > Default fallback
+    const codeFromUrl = getCodeFromUrl();
+    
+    const apiEndpoint = '/v1/getDataset';
+    const apiKey = process.env.REACT_APP_API_KEY;
+    
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    };
+
+    // Add API key if provided
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+      // Or use: headers['X-API-Key'] = apiKey; depending on the API
+    }
+
+    return {
+      baseUrl: apiBaseUrl,
+      endpoint: apiEndpoint,
+      headers,
+      method: 'POST',
+      body: {
+        // Use code from URL, fallback to default if not provided
+        fileCode: codeFromUrl
+      }
+    };
+  };
+
+  // Transform API response to match our DatasetRow format
+  const transformApiResponse = (data: any[]): DatasetRow[] => {
+    if (!Array.isArray(data)) {
+      throw new Error('API response is not an array');
+    }
+
+    return data.map((item, index) => {
+      // Ensure each row has an id field
+      if (!item.id) {
+        item.id = index + 1;
+      }
+      
+      // Convert all values to appropriate types
+      const transformedItem: DatasetRow = { id: item.id };
+      
+      Object.keys(item).forEach(key => {
+        if (key !== 'id') {
+          const value = item[key];
+          // Keep original type but ensure it's serializable
+          if (typeof value === 'object' && value !== null) {
+            transformedItem[key] = JSON.stringify(value);
+          } else {
+            transformedItem[key] = value;
+          }
+        }
+      });
+
+      return transformedItem;
+    });
+  };
+
+  const fetchDataWithRetry = useCallback(async (maxRetries: number = 3): Promise<DatasetRow[]> => {
+    const config = apiConfig();
+    const url = `${config.baseUrl}${config.endpoint}`;
+    const codeFromUrl = getCodeFromUrl();
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`Fetching data from: ${url} with code: ${codeFromUrl} (Attempt ${attempt}/${maxRetries})`);
+        
+        const requestOptions: RequestInit = {
+          method: config.method || 'GET',
+          headers: config.headers,
+          // Add CORS mode
+          mode: 'cors',
+          // Add credentials if needed for authentication
+          credentials: 'omit',
+        };
+
+        if (config.body && config.method === 'POST') {
+          requestOptions.body = JSON.stringify(config.body);
+        }
+
+        const response = await fetch(url, requestOptions);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return transformApiResponse(data.data);
+        
+      } catch (error) {
+        console.error(`Attempt ${attempt} failed:`, error);
+        
+        if (attempt === maxRetries) {
+          // If it's a CORS error, provide helpful guidance
+          if (error instanceof TypeError && error.message.includes('CORS')) {
+            throw new Error(`CORS Error: Unable to fetch from ${url}. This may be due to CORS restrictions. Consider using a proxy server or enabling CORS on the API.`);
+          }
+          throw error;
+        }
+        
+        // Wait before retrying (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+      }
+    }
+    
+    throw new Error('Max retries exceeded');
+  }, []); // Dependencies for when to re-create this function
 
   useEffect(() => {
-    // Load dataset
-    fetch(`${process.env.PUBLIC_URL}/dataset.json`)
-      .then((response: Response) => {
-        if (!response.ok) {
-          throw new Error('Failed to load dataset');
-        }
-        return response.json();
-      })
-      .then((data: DatasetRow[]) => {
+    const loadDataset = async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const data = await fetchDataWithRetry(3);
         setDataset(data);
+        
         if (data.length > 0) {
           // Ensure 'id' is the first column, exclude 'rating' and 'comment' from display columns
           const allColumns = Object.keys(data[0]);
@@ -91,13 +229,45 @@ const DatasetViewer: React.FC = () => {
           
           setRowRatings(existingRatings);
         }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+        setError(errorMessage);
+        console.error('Failed to load dataset:', err);
+      } finally {
         setLoading(false);
-      })
-      .catch((err: Error) => {
-        setError(err.message);
-        setLoading(false);
-      });
+      }
+    };
+
+    loadDataset();
+  }, [fetchDataWithRetry]); // Now fetchDataWithRetry is properly memoized
+
+  // Listen for URL changes to reload data when code changes
+  useEffect(() => {
+    const handlePopState = () => {
+      // Clear previous state and reload data
+      setRowRatings(new Map());
+      setHasUnsavedChanges(false);
+      setCurrentPage(1);
+      
+      // Force component to re-fetch data with new URL
+      window.location.reload();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
   }, []);
+
+  // Retry function for manual retry
+  const handleRetry = () => {
+    setError(null);
+    setLoading(true);
+    
+    // Trigger re-fetch by reloading the page or re-running the effect
+    window.location.reload();
+  };
 
   useEffect(() => {
     // Initialize Giscus
@@ -192,17 +362,19 @@ const DatasetViewer: React.FC = () => {
         return row;
       });
 
-      // Save to backend via FastAPI
-      // Determine the backend URL
-      //const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
-      //api/dataset/save
-      const backendUrl = 'https://e7zf4xjf2k.execute-api.us-east-1.amazonaws.com/prod';
-      const response = await fetch(`${backendUrl}/v1/saveDataset`, {
+      const codeFromUrl = getCodeFromUrl();
+      
+      const response = await fetch(`${apiBaseUrl}/v1/saveDataset`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ dataset: updatedDataset }),
+        body: JSON.stringify({ 
+          dataset: updatedDataset,
+          fileCode: codeFromUrl,
+          // Optional: keep clientId for backward compatibility
+          clientId: 'test'
+        }),
       });
 
       if (!response.ok) {
@@ -279,12 +451,43 @@ const DatasetViewer: React.FC = () => {
   }
 
   if (error) {
-    return <div className="error">Error: {error}</div>;
+    return (
+      <div className="error-container">
+        <div className="error-header">
+          <h2>⚠️ Failed to Load Dataset</h2>
+        </div>
+        <div className="error-message">
+          <p><strong>Error:</strong> {error}</p>
+        </div>
+        <div className="error-actions">
+          <button className="retry-btn" onClick={handleRetry}>
+            🔄 Retry
+          </button>
+          <details className="error-details">
+            <summary>Troubleshooting Tips</summary>
+            <ul>
+              <li>Check your internet connection</li>
+              <li>Verify the API endpoint is accessible</li>
+              <li>For CORS errors, consider using a proxy or enabling CORS on the API</li>
+              <li>Check if the API requires authentication</li>
+              <li>Verify the API response format matches expected structure</li>
+            </ul>
+          </details>
+        </div>
+        <div className="api-info">
+          <p><strong>API Configuration:</strong></p>
+          <pre>{JSON.stringify(apiConfig(), null, 2)}</pre>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="dataset-viewer">
       <h1>📊 Public Dataset</h1>
+      
+      {/* Dataset Code Tester Component */}
+      {/* <DatasetCodeTester /> */}
 
       {/* Save Button */}
       {hasUnsavedChanges && (
