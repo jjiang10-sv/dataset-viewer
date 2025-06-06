@@ -1,279 +1,29 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import './DatasetViewer.css';
-//import DatasetCodeTester from './components/DatasetCodeTester';
-
-interface DatasetRow {
-  id: string | number;
-  [key: string]: string | number | boolean;
-}
-
-interface RowRating {
-  rowId: string | number;
-  rating: number;
-  comment: string;
-}
-
-interface GiscusConfig {
-  repo: string;
-  repoId: string;
-  category: string;
-  categoryId: string;
-  mapping: string;
-  term?: string;
-  reactionsEnabled: string;
-  emitMetadata: string;
-  inputPosition: string;
-  theme: string;
-  lang: string;
-  loading?: string;
-}
-
-// API Configuration
-interface ApiConfig {
-  baseUrl: string;
-  endpoint: string;
-  headers?: Record<string, string>;
-  method?: 'GET' | 'POST';
-  body?: any;
-}
-
-declare global {
-  interface Window {
-    giscus?: {
-      setConfig: (config: Partial<GiscusConfig>) => void;
-    };
-  }
-}
+import { DatasetRow, RowRating } from './types';
+import { getCodeFromUrl, getRowId } from './utils/urlHelpers';
+import { useDatasetApi } from './hooks/useDatasetApi';
+import ErrorDisplay from './components/ErrorDisplay';
+import PaginationControls from './components/PaginationControls';
+import DatasetTable from './components/DatasetTable';
 
 const DatasetViewer: React.FC = () => {
-  const [dataset, setDataset] = useState<DatasetRow[]>([]);
+  const { dataset, loading, error, saving, loadDataset, saveDataset, apiConfig } = useDatasetApi();
   const [columns, setColumns] = useState<string[]>([]);
   const [rowRatings, setRowRatings] = useState<Map<string | number, RowRating>>(new Map());
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState<boolean>(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(5);
-  const apiBaseUrl = 'https://e7zf4xjf2k.execute-api.us-east-1.amazonaws.com/prod';
-
-  // Helper function to get consistent row ID across all operations
-  const getRowId = (row: DatasetRow, index: number, idColumn?: string): string | number => {
-    let rowId: string | number = row.id;
-    if (!rowId && idColumn) {
-      const columnValue = row[idColumn];
-      rowId = typeof columnValue === 'boolean' ? index : columnValue;
-    }
-    if (!rowId) {
-      rowId = index;
-    }
-    // Ensure rowId is string or number, not boolean
-    return typeof rowId === 'boolean' ? index : rowId;
-  };
-
-  // Extract code from URL parameters
-  const getCodeFromUrl = (): string => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const codeFromQuery = urlParams.get('code');
-    
-    // Also check hash parameters (for URLs like example.com#code=123)
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const codeFromHash = hashParams.get('code');
-    
-    // Also check path parameters (for URLs like example.com/dataset/123)
-    const pathSegments = window.location.pathname.split('/');
-    const codeFromPath = pathSegments[pathSegments.length - 1];
-    
-    // Priority: query param > hash param > path param > default
-    return codeFromQuery || codeFromHash || (codeFromPath !== 'dataset-viewer' && codeFromPath !== '' ? codeFromPath : '1234567890');
-  };
-
-  // API Configuration - you can customize these values
-  const apiConfig = (): ApiConfig => {
-    // Priority: Environment variables > URL parameter > Default fallback
-    const codeFromUrl = getCodeFromUrl();
-    
-    const apiEndpoint = '/v1/getDataset';
-    const apiKey = process.env.REACT_APP_API_KEY;
-    
-    const headers: Record<string, string> = {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-    };
-
-    // Add API key if provided
-    if (apiKey) {
-      headers['Authorization'] = `Bearer ${apiKey}`;
-      // Or use: headers['X-API-Key'] = apiKey; depending on the API
-    }
-
-    return {
-      baseUrl: apiBaseUrl,
-      endpoint: apiEndpoint,
-      headers,
-      method: 'POST',
-      body: {
-        // Use code from URL, fallback to default if not provided
-        fileCode: codeFromUrl
-      }
-    };
-  };
-
-  // Transform API response to match our DatasetRow format
-  const transformApiResponse = (data: any[]): DatasetRow[] => {
-    if (!Array.isArray(data)) {
-      throw new Error('API response is not an array');
-    }
-
-    console.log(`Transforming ${data.length} raw items`);
-
-    // Remove exact duplicates first (same object content)
-    const uniqueData = data.filter((item, index, self) => 
-      self.findIndex(other => JSON.stringify(other) === JSON.stringify(item)) === index
-    );
-    
-    if (uniqueData.length !== data.length) {
-      console.warn(`Removed ${data.length - uniqueData.length} exact duplicate items`);
-    }
-
-    // First pass: collect existing IDs to avoid conflicts
-    //const existingIds = new Set<string | number>();
-    const dataWithIds = uniqueData.map((item, index) => {
-      // let id = item.id;
-      
-      // // If no ID exists, generate one
-      // if (id === undefined || id === null || id === '') {
-      //   id = index + 1;
-      // }
-      
-      // Handle duplicate IDs by making them unique
-      let uniqueId = index + 1;
-      //let counter = 1;
-      // while (existingIds.has(uniqueId)) {
-      //   console.warn(`Duplicate ID detected: ${id}, creating unique ID: ${id}_${counter}`);
-      //   uniqueId = `${id}_${counter}`;
-      //   counter++;
-      // }
-      // existingIds.add(uniqueId);
-      
-      return { ...item, id: uniqueId };
-    });
-
-    // Second pass: transform the data
-    const transformedData = dataWithIds.map((item, index) => {
-      // Convert all values to appropriate types
-      const transformedItem: DatasetRow = { id: item.id };
-      
-      Object.keys(item).forEach(key => {
-        if (key !== 'id') {
-          const value = item[key];
-          // Keep original type but ensure it's serializable
-          if (typeof value === 'object' && value !== null) {
-            transformedItem[key] = JSON.stringify(value);
-          } else {
-            transformedItem[key] = value;
-          }
-        }
-      });
-
-      return transformedItem;
-    });
-
-    console.log(`Transformed into ${transformedData.length} unique items`);
-    return transformedData;
-  };
-
-  const fetchDataWithRetry = useCallback(async (maxRetries: number = 3): Promise<DatasetRow[]> => {
-    const config = apiConfig();
-    const url = `${config.baseUrl}${config.endpoint}`;
-    const codeFromUrl = getCodeFromUrl();
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`Fetching data from: ${url} with code: ${codeFromUrl} (Attempt ${attempt}/${maxRetries})`);
-        
-        const requestOptions: RequestInit = {
-          method: config.method || 'GET',
-          headers: config.headers,
-          // Add CORS mode
-          mode: 'cors',
-          // Add credentials if needed for authentication
-          credentials: 'omit',
-        };
-
-        if (config.body && config.method === 'POST') {
-          requestOptions.body = JSON.stringify(config.body);
-        }
-
-        const response = await fetch(url, requestOptions);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        const transformData = data.data.dataset? data.data.dataset : data.data;
-        
-        // Debug logging to identify data issues
-        console.log(`Raw API response structure:`, {
-          hasDataProperty: !!data.data,
-          hasDatasetProperty: !!(data.data && data.data.dataset),
-          transformDataLength: transformData?.length,
-          firstTwoItems: transformData?.slice(0, 2)
-        });
-        
-        const transformedData = transformApiResponse(transformData);
-        
-        // Check for duplicate IDs after transformation
-        const ids = transformedData.map(row => row.id);
-        const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
-        if (duplicateIds.length > 0) {
-          console.warn('Duplicate IDs found after transformation:', duplicateIds);
-        }
-        
-        return transformedData;
-        
-      } catch (error) {
-        console.error(`Attempt ${attempt} failed:`, error);
-        
-        if (attempt === maxRetries) {
-          // If it's a CORS error, provide helpful guidance
-          if (error instanceof TypeError && error.message.includes('CORS')) {
-            throw new Error(`CORS Error: Unable to fetch from ${url}. This may be due to CORS restrictions. Consider using a proxy server or enabling CORS on the API.`);
-          }
-          throw error;
-        }
-        
-        // Wait before retrying (exponential backoff)
-        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-      }
-    }
-    
-    throw new Error('Max retries exceeded');
-  }, []); // Dependencies for when to re-create this function
 
   useEffect(() => {
-    const loadDataset = async () => {
-      setLoading(true);
-      setError(null);
-      
+    const initializeDataset = async () => {
       try {
-        const data = await fetchDataWithRetry(3);
-        
-        // Debug: Check for duplicate IDs in the final dataset
-        const ids = data.map(row => row.id);
-        const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
-        if (duplicateIds.length > 0) {
-          console.error('CRITICAL: Duplicate IDs in final dataset:', duplicateIds);
-          console.error('Full ID list:', ids);
-        }
-        
-        setDataset(data);
+        const data = await loadDataset();
         
         if (data.length > 0) {
-          // Ensure 'id' is the first column, exclude 'rating' and 'comment' from display columns
+          // Set up columns
           const allColumns = Object.keys(data[0]);
           const idColumn = allColumns.find(col => col.toLowerCase() === 'id') || allColumns[0];
           const otherColumns = allColumns.filter(col => 
@@ -283,12 +33,10 @@ const DatasetViewer: React.FC = () => {
           );
           setColumns([idColumn, ...otherColumns]);
 
-          // Pre-populate rowRatings with existing ratings and comments from dataset
+          // Pre-populate rowRatings with existing ratings and comments
           const existingRatings = new Map<string | number, RowRating>();
           data.forEach((row, index) => {
             const safeRowId = getRowId(row, index, idColumn);
-            
-            // Check if row has rating or comment data
             const rating = typeof row.rating === 'number' ? row.rating : 0;
             const comment = typeof row.comment === 'string' ? row.comment : '';
             
@@ -304,42 +52,27 @@ const DatasetViewer: React.FC = () => {
           setRowRatings(existingRatings);
         }
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-        setError(errorMessage);
-        console.error('Failed to load dataset:', err);
-      } finally {
-        setLoading(false);
+        // Error is handled by the hook
       }
     };
 
-    loadDataset();
-  }, [fetchDataWithRetry]); // Now fetchDataWithRetry is properly memoized
+    initializeDataset();
+  }, [loadDataset]);
 
-  // Listen for URL changes to reload data when code changes
+  // Listen for URL changes
   useEffect(() => {
     const handlePopState = () => {
-      // Clear previous state and reload data
       setRowRatings(new Map());
       setHasUnsavedChanges(false);
       setCurrentPage(1);
-      
-      // Force component to re-fetch data with new URL
       window.location.reload();
     };
 
     window.addEventListener('popstate', handlePopState);
-    
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Retry function for manual retry
   const handleRetry = () => {
-    setError(null);
-    setLoading(true);
-    
-    // Trigger re-fetch by reloading the page or re-running the effect
     window.location.reload();
   };
 
@@ -369,63 +102,23 @@ const DatasetViewer: React.FC = () => {
       return;
     }
 
-    setSaving(true);
-
     try {
-      // Update the dataset with all ratings and comments
       const updatedDataset = dataset.map((row, index) => {
         const safeRowId = getRowId(row, index, columns[0]);
         const ratingData = rowRatings.get(safeRowId);
         
         if (ratingData && (ratingData.rating > 0 || ratingData.comment.trim() !== '')) {
-          return {
-            ...row,
-            rating: ratingData.rating,
-            comment: ratingData.comment
-          };
+          return { ...row, rating: ratingData.rating, comment: ratingData.comment };
         }
         return row;
       });
 
-      const codeFromUrl = getCodeFromUrl();
-      
-      const response = await fetch(`${apiBaseUrl}/v1/saveDataset`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          dataset: updatedDataset,
-          fileCode: codeFromUrl,
-          // Optional: keep clientId for backward compatibility
-          clientId: 'test'
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to save ratings');
-      }
-
-      const result = await response.json();
-      
-      // Update local state
-      setDataset(updatedDataset);
+      await saveDataset(updatedDataset);
       setHasUnsavedChanges(false);
-      
-      console.log('All ratings saved successfully:', result);
       alert('All ratings and comments saved successfully!');
     } catch (error) {
-      console.error('Error saving ratings:', error);
       alert(`Failed to save ratings: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setSaving(false);
     }
-  };
-
-  const getRatingTitle = (star: number): string => {
-    const titles = ['', 'Terrible', 'Not good', 'Average', 'Very good', 'Amazing'];
-    return titles[star] || '';
   };
 
   // Pagination calculations
@@ -437,38 +130,12 @@ const DatasetViewer: React.FC = () => {
 
   const handlePageChange = (page: number): void => {
     setCurrentPage(page);
-    // Scroll to top of table when page changes
     document.querySelector('.table-container')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleItemsPerPageChange = (newItemsPerPage: number): void => {
     setItemsPerPage(newItemsPerPage);
-    setCurrentPage(1); // Reset to first page when changing items per page
-  };
-
-  const getPaginationRange = (): number[] => {
-    const range: number[] = [];
-    const maxVisiblePages = 5;
-    
-    if (totalPages <= maxVisiblePages) {
-      for (let i = 1; i <= totalPages; i++) {
-        range.push(i);
-      }
-    } else {
-      const halfRange = Math.floor(maxVisiblePages / 2);
-      let start = Math.max(1, currentPage - halfRange);
-      let end = Math.min(totalPages, start + maxVisiblePages - 1);
-      
-      if (end - start < maxVisiblePages - 1) {
-        start = Math.max(1, end - maxVisiblePages + 1);
-      }
-      
-      for (let i = start; i <= end; i++) {
-        range.push(i);
-      }
-    }
-    
-    return range;
+    setCurrentPage(1);
   };
 
   if (loading) {
@@ -477,33 +144,11 @@ const DatasetViewer: React.FC = () => {
 
   if (error) {
     return (
-      <div className="error-container">
-        <div className="error-header">
-          <h2>⚠️ Failed to Load Dataset</h2>
-        </div>
-        <div className="error-message">
-          <p><strong>Error:</strong> {error}</p>
-        </div>
-        <div className="error-actions">
-          <button className="retry-btn" onClick={handleRetry}>
-            🔄 Retry
-          </button>
-          <details className="error-details">
-            <summary>Troubleshooting Tips</summary>
-            <ul>
-              <li>Check your internet connection</li>
-              <li>Verify the API endpoint is accessible</li>
-              <li>For CORS errors, consider using a proxy or enabling CORS on the API</li>
-              <li>Check if the API requires authentication</li>
-              <li>Verify the API response format matches expected structure</li>
-            </ul>
-          </details>
-        </div>
-        <div className="api-info">
-          <p><strong>API Configuration:</strong></p>
-          <pre>{JSON.stringify(apiConfig(), null, 2)}</pre>
-        </div>
-      </div>
+      <ErrorDisplay 
+        error={error} 
+        onRetry={handleRetry} 
+        apiConfig={apiConfig()} 
+      />
     );
   }
 
@@ -527,9 +172,6 @@ const DatasetViewer: React.FC = () => {
           </div>
         )}
       </div>
-      
-      {/* Dataset Code Tester Component */}
-      {/* <DatasetCodeTester /> */}
 
       {/* Save Button */}
       {hasUnsavedChanges && (
@@ -547,185 +189,42 @@ const DatasetViewer: React.FC = () => {
 
       {/* Pagination Controls - Top */}
       {dataset.length > 0 && (
-        <div className="pagination-controls top">
-          <div className="pagination-info">
-            <span>
-              Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} items
-            </span>
-            <select 
-              value={itemsPerPage} 
-              onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
-              className="items-per-page-select"
-            >
-              <option value={5}>5 per page</option>
-              <option value={10}>10 per page</option>
-              <option value={25}>25 per page</option>
-              <option value={50}>50 per page</option>
-              <option value={100}>100 per page</option>
-            </select>
-          </div>
-          
-          <div className="pagination-buttons">
-            <button 
-              onClick={() => handlePageChange(1)}
-              disabled={currentPage === 1}
-              className="pagination-btn"
-            >
-              First
-            </button>
-            <button 
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="pagination-btn"
-            >
-              Previous
-            </button>
-            
-            {getPaginationRange().map((page) => (
-              <button
-                key={page}
-                onClick={() => handlePageChange(page)}
-                className={`pagination-btn ${currentPage === page ? 'active' : ''}`}
-              >
-                {page}
-              </button>
-            ))}
-            
-            <button 
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="pagination-btn"
-            >
-              Next
-            </button>
-            <button 
-              onClick={() => handlePageChange(totalPages)}
-              disabled={currentPage === totalPages}
-              className="pagination-btn"
-            >
-              Last
-            </button>
-          </div>
-        </div>
+        <PaginationControls
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          itemsPerPage={itemsPerPage}
+          startIndex={startIndex}
+          endIndex={endIndex}
+          onPageChange={handlePageChange}
+          onItemsPerPageChange={handleItemsPerPageChange}
+        />
       )}
 
       {/* Dataset Table */}
-      <div className="table-container">
-        {dataset.length > 0 ? (
-          <table className="dataset-table">
-            <thead>
-              <tr>
-                {columns.map((column: string) => (
-                  <th key={column}>{column}</th>
-                ))}
-                <th>Rating & Comments</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentPageData.map((row: DatasetRow, index: number) => {
-                const actualIndex = startIndex + index; // Get the actual index in the full dataset
-                const safeRowId = getRowId(row, actualIndex, columns[0]);
-                
-                // Create unique key to prevent React key conflicts
-                const uniqueKey = `row-${actualIndex}-${safeRowId}`;
-                
-                const currentRating = rowRatings.get(safeRowId);
-                
-                return (
-                  <tr key={uniqueKey}>
-                    {columns.map((column: string, colIndex: number) => (
-                      <td key={`${uniqueKey}-col-${colIndex}-${column}`}>{String(row[column])}</td>
-                    ))}
-                    <td className="rating-cell">
-                      <div className="row-rating">
-                        {/* Star Rating */}
-                        <div className="star-rating-inline">
-                          {[1, 2, 3, 4, 5].map((star: number) => (
-                            <label key={`${uniqueKey}-star-${star}`} className="star-label-inline">
-                              <input
-                                type="radio"
-                                name={`rating-${safeRowId}`}
-                                value={star}
-                                checked={currentRating?.rating === star}
-                                onChange={() => handleRatingChange(safeRowId, star)}
-                                disabled={saving}
-                              />
-                              <span 
-                                className={`star-icon ${currentRating?.rating && currentRating.rating >= star ? 'filled' : 'empty'}`} 
-                                title={getRatingTitle(star)}
-                              >
-                                ★
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                        
-                        {/* Comment Input */}
-                        <textarea
-                          className="comment-input"
-                          placeholder="Add a comment..."
-                          value={currentRating?.comment || ''}
-                          onChange={(e) => handleCommentChange(safeRowId, e.target.value)}
-                          disabled={saving}
-                          rows={2}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        ) : (
-          <p>No data available</p>
-        )}
-      </div>
+      <DatasetTable
+        data={currentPageData}
+        columns={columns}
+        rowRatings={rowRatings}
+        onRatingChange={handleRatingChange}
+        onCommentChange={handleCommentChange}
+        saving={saving}
+        startIndex={startIndex}
+      />
 
       {/* Pagination Controls - Bottom */}
       {dataset.length > 0 && totalPages > 1 && (
-        <div className="pagination-controls bottom">
-          <div className="pagination-buttons">
-            <button 
-              onClick={() => handlePageChange(1)}
-              disabled={currentPage === 1}
-              className="pagination-btn"
-            >
-              First
-            </button>
-            <button 
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="pagination-btn"
-            >
-              Previous
-            </button>
-            
-            {getPaginationRange().map((page) => (
-              <button
-                key={page}
-                onClick={() => handlePageChange(page)}
-                className={`pagination-btn ${currentPage === page ? 'active' : ''}`}
-              >
-                {page}
-              </button>
-            ))}
-            
-            <button 
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="pagination-btn"
-            >
-              Next
-            </button>
-            <button 
-              onClick={() => handlePageChange(totalPages)}
-              disabled={currentPage === totalPages}
-              className="pagination-btn"
-            >
-              Last
-            </button>
-          </div>
-        </div>
+        <PaginationControls
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          itemsPerPage={itemsPerPage}
+          startIndex={startIndex}
+          endIndex={endIndex}
+          onPageChange={handlePageChange}
+          onItemsPerPageChange={handleItemsPerPageChange}
+          showItemsPerPageSelector={false}
+        />
       )}
 
       {/* Save Button at Bottom */}
@@ -741,9 +240,6 @@ const DatasetViewer: React.FC = () => {
         </div>
       )}
 
-      {/* Overall Comments with Giscus */}
-      <h2>💬 Overall Comments</h2>
-      <div id="giscus-container"></div>
     </div>
   );
 };
