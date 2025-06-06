@@ -59,6 +59,20 @@ const DatasetViewer: React.FC = () => {
   const [itemsPerPage, setItemsPerPage] = useState<number>(5);
   const apiBaseUrl = 'https://e7zf4xjf2k.execute-api.us-east-1.amazonaws.com/prod';
 
+  // Helper function to get consistent row ID across all operations
+  const getRowId = (row: DatasetRow, index: number, idColumn?: string): string | number => {
+    let rowId: string | number = row.id;
+    if (!rowId && idColumn) {
+      const columnValue = row[idColumn];
+      rowId = typeof columnValue === 'boolean' ? index : columnValue;
+    }
+    if (!rowId) {
+      rowId = index;
+    }
+    // Ensure rowId is string or number, not boolean
+    return typeof rowId === 'boolean' ? index : rowId;
+  };
+
   // Extract code from URL parameters
   const getCodeFromUrl = (): string => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -113,12 +127,42 @@ const DatasetViewer: React.FC = () => {
       throw new Error('API response is not an array');
     }
 
-    return data.map((item, index) => {
-      // Ensure each row has an id field
-      if (!item.id) {
-        item.id = index + 1;
-      }
+    console.log(`Transforming ${data.length} raw items`);
+
+    // Remove exact duplicates first (same object content)
+    const uniqueData = data.filter((item, index, self) => 
+      self.findIndex(other => JSON.stringify(other) === JSON.stringify(item)) === index
+    );
+    
+    if (uniqueData.length !== data.length) {
+      console.warn(`Removed ${data.length - uniqueData.length} exact duplicate items`);
+    }
+
+    // First pass: collect existing IDs to avoid conflicts
+    //const existingIds = new Set<string | number>();
+    const dataWithIds = uniqueData.map((item, index) => {
+      // let id = item.id;
       
+      // // If no ID exists, generate one
+      // if (id === undefined || id === null || id === '') {
+      //   id = index + 1;
+      // }
+      
+      // Handle duplicate IDs by making them unique
+      let uniqueId = index + 1;
+      //let counter = 1;
+      // while (existingIds.has(uniqueId)) {
+      //   console.warn(`Duplicate ID detected: ${id}, creating unique ID: ${id}_${counter}`);
+      //   uniqueId = `${id}_${counter}`;
+      //   counter++;
+      // }
+      // existingIds.add(uniqueId);
+      
+      return { ...item, id: uniqueId };
+    });
+
+    // Second pass: transform the data
+    const transformedData = dataWithIds.map((item, index) => {
       // Convert all values to appropriate types
       const transformedItem: DatasetRow = { id: item.id };
       
@@ -136,6 +180,9 @@ const DatasetViewer: React.FC = () => {
 
       return transformedItem;
     });
+
+    console.log(`Transformed into ${transformedData.length} unique items`);
+    return transformedData;
   };
 
   const fetchDataWithRetry = useCallback(async (maxRetries: number = 3): Promise<DatasetRow[]> => {
@@ -167,7 +214,26 @@ const DatasetViewer: React.FC = () => {
         }
 
         const data = await response.json();
-        return transformApiResponse(data.data);
+        const transformData = data.data.dataset? data.data.dataset : data.data;
+        
+        // Debug logging to identify data issues
+        console.log(`Raw API response structure:`, {
+          hasDataProperty: !!data.data,
+          hasDatasetProperty: !!(data.data && data.data.dataset),
+          transformDataLength: transformData?.length,
+          firstTwoItems: transformData?.slice(0, 2)
+        });
+        
+        const transformedData = transformApiResponse(transformData);
+        
+        // Check for duplicate IDs after transformation
+        const ids = transformedData.map(row => row.id);
+        const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
+        if (duplicateIds.length > 0) {
+          console.warn('Duplicate IDs found after transformation:', duplicateIds);
+        }
+        
+        return transformedData;
         
       } catch (error) {
         console.error(`Attempt ${attempt} failed:`, error);
@@ -195,6 +261,15 @@ const DatasetViewer: React.FC = () => {
       
       try {
         const data = await fetchDataWithRetry(3);
+        
+        // Debug: Check for duplicate IDs in the final dataset
+        const ids = data.map(row => row.id);
+        const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
+        if (duplicateIds.length > 0) {
+          console.error('CRITICAL: Duplicate IDs in final dataset:', duplicateIds);
+          console.error('Full ID list:', ids);
+        }
+        
         setDataset(data);
         
         if (data.length > 0) {
@@ -211,8 +286,7 @@ const DatasetViewer: React.FC = () => {
           // Pre-populate rowRatings with existing ratings and comments from dataset
           const existingRatings = new Map<string | number, RowRating>();
           data.forEach((row, index) => {
-            const rowId = row.id || row[idColumn] || index;
-            const safeRowId = typeof rowId === 'boolean' ? index : rowId;
+            const safeRowId = getRowId(row, index, idColumn);
             
             // Check if row has rating or comment data
             const rating = typeof row.rating === 'number' ? row.rating : 0;
@@ -269,55 +343,6 @@ const DatasetViewer: React.FC = () => {
     window.location.reload();
   };
 
-  useEffect(() => {
-    // Initialize Giscus
-    const script = document.createElement('script');
-
-    // <script src="https://giscus.app/client.js"
-    //     data-repo="jjiang10-sv/dataset-viewer"
-    //     data-repo-id="R_kgDOO07JRQ"
-    //     data-category="[ENTER CATEGORY NAME HERE]"
-    //     data-category-id="[ENTER CATEGORY ID HERE]"
-    //     data-mapping="url"
-    //     data-strict="0"
-    //     data-reactions-enabled="1"
-    //     data-emit-metadata="0"
-    //     data-input-position="bottom"
-    //     data-theme="preferred_color_scheme"
-    //     data-lang="en"
-    //     crossorigin="anonymous"
-    // </script>
-    script.src = 'https://giscus.app/client.js';
-    script.setAttribute('data-repo', 'jjiang10-sv/dataset-viewer'); // Replace with your repo
-    script.setAttribute('data-repo-id', 'R_kgDOO07JRQ'); // Replace with your repo ID
-    script.setAttribute('data-category', 'General'); // Replace with your category
-    script.setAttribute('data-category-id', 'DIC_kwDOO07JRc4Cq9I7'); // Replace with your category ID
-    script.setAttribute('data-mapping', 'url');
-    script.setAttribute('data-strict', '0');
-    script.setAttribute('data-reactions-enabled', '1');
-    script.setAttribute('data-emit-metadata', '0');
-    script.setAttribute('data-input-position', 'bottom');
-    script.setAttribute('data-theme', 'preferred_color_scheme');
-    script.setAttribute('data-lang', 'en');
-    script.setAttribute('data-loading', 'lazy');
-    script.crossOrigin = 'anonymous';
-    script.async = true;
-
-    const giscusContainer = document.getElementById('giscus-container');
-    if (giscusContainer) {
-      // Clear any existing giscus content
-      giscusContainer.innerHTML = '';
-      giscusContainer.appendChild(script);
-    }
-
-    return () => {
-      // Cleanup on unmount
-      if (giscusContainer) {
-        giscusContainer.innerHTML = '';
-      }
-    };
-  }, []);
-
   const handleRatingChange = (rowId: string | number, rating: number): void => {
     setRowRatings(prev => {
       const newRatings = new Map(prev);
@@ -348,9 +373,9 @@ const DatasetViewer: React.FC = () => {
 
     try {
       // Update the dataset with all ratings and comments
-      const updatedDataset = dataset.map(row => {
-        const currentRowId = row.id || row[columns[0]];
-        const ratingData = rowRatings.get(currentRowId as string | number);
+      const updatedDataset = dataset.map((row, index) => {
+        const safeRowId = getRowId(row, index, columns[0]);
+        const ratingData = rowRatings.get(safeRowId);
         
         if (ratingData && (ratingData.rating > 0 || ratingData.comment.trim() !== '')) {
           return {
@@ -486,6 +511,23 @@ const DatasetViewer: React.FC = () => {
     <div className="dataset-viewer">
       <h1>📊 Public Dataset</h1>
       
+      {/* Display current dataset code */}
+      <div style={{ 
+        backgroundColor: '#f8f9fa', 
+        border: '1px solid #dee2e6', 
+        borderRadius: '4px', 
+        padding: '10px', 
+        marginBottom: '20px',
+        fontSize: '14px'
+      }}>
+        <strong>Dataset Code:</strong> <code>{getCodeFromUrl()}</code>
+        {process.env.NODE_ENV === 'development' && (
+          <div style={{ marginTop: '5px', fontSize: '12px', color: '#6c757d' }}>
+            Debug: {dataset.length} rows loaded, {rowRatings.size} ratings stored
+          </div>
+        )}
+      </div>
+      
       {/* Dataset Code Tester Component */}
       {/* <DatasetCodeTester /> */}
 
@@ -582,22 +624,24 @@ const DatasetViewer: React.FC = () => {
             <tbody>
               {currentPageData.map((row: DatasetRow, index: number) => {
                 const actualIndex = startIndex + index; // Get the actual index in the full dataset
-                const rowId = row.id || row[columns[0]] || actualIndex;
-                // Ensure rowId is string or number, not boolean
-                const safeRowId = typeof rowId === 'boolean' ? actualIndex : rowId;
+                const safeRowId = getRowId(row, actualIndex, columns[0]);
+                
+                // Create unique key to prevent React key conflicts
+                const uniqueKey = `row-${actualIndex}-${safeRowId}`;
+                
                 const currentRating = rowRatings.get(safeRowId);
                 
                 return (
-                  <tr key={safeRowId}>
-                    {columns.map((column: string) => (
-                      <td key={column}>{String(row[column])}</td>
+                  <tr key={uniqueKey}>
+                    {columns.map((column: string, colIndex: number) => (
+                      <td key={`${uniqueKey}-col-${colIndex}-${column}`}>{String(row[column])}</td>
                     ))}
                     <td className="rating-cell">
                       <div className="row-rating">
                         {/* Star Rating */}
                         <div className="star-rating-inline">
                           {[1, 2, 3, 4, 5].map((star: number) => (
-                            <label key={star} className="star-label-inline">
+                            <label key={`${uniqueKey}-star-${star}`} className="star-label-inline">
                               <input
                                 type="radio"
                                 name={`rating-${safeRowId}`}
