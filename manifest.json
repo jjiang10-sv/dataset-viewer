@@ -1,0 +1,10 @@
+{
+  "short_name": "Dataset Viewer",
+  "name": "Dataset Viewer - Interactive Data Analysis Tool",
+  "icons": [],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#007bff",
+  "background_color": "#ffffff",
+  "description": "A React-based dataset viewer with rating and commenting functionality"
+} 

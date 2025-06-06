@@ -1,13 +1,13 @@
 {
   "files": {
-    "main.css": "/dataset-viewer/static/css/main.82b2a5cb.css",
-    "main.js": "/dataset-viewer/static/js/main.ac7bdcb8.js",
+    "main.css": "/dataset-viewer/static/css/main.08bcb696.css",
+    "main.js": "/dataset-viewer/static/js/main.881252c2.js",
     "index.html": "/dataset-viewer/index.html",
-    "main.82b2a5cb.css.map": "/dataset-viewer/static/css/main.82b2a5cb.css.map",
-    "main.ac7bdcb8.js.map": "/dataset-viewer/static/js/main.ac7bdcb8.js.map"
+    "main.08bcb696.css.map": "/dataset-viewer/static/css/main.08bcb696.css.map",
+    "main.881252c2.js.map": "/dataset-viewer/static/js/main.881252c2.js.map"
   },
   "entrypoints": [
-    "static/css/main.82b2a5cb.css",
-    "static/js/main.ac7bdcb8.js"
+    "static/css/main.08bcb696.css",
+    "static/js/main.881252c2.js"
   ]
 }
