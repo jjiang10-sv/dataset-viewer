@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { DatasetRow, ApiConfig } from '../types';
 import { getCodeFromUrl } from '../utils/urlHelpers';
 
@@ -9,9 +9,13 @@ export const useDatasetApi = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<boolean>(false);
+  
+  // Add refs to track loading state and prevent duplicate calls
+  const isLoadingRef = useRef<boolean>(false);
+  const hasLoadedRef = useRef<boolean>(false);
 
-  // API Configuration
-  const apiConfig = (): ApiConfig => {
+  // Memoize API config function - this should be stable
+  const apiConfig = useCallback((): ApiConfig => {
     const codeFromUrl = getCodeFromUrl();
     const apiEndpoint = '/v1/getDataset';
     const apiKey = process.env.REACT_APP_API_KEY;
@@ -34,129 +38,142 @@ export const useDatasetApi = () => {
         fileCode: codeFromUrl
       }
     };
+  }, []);
+
+  // Helper function to safely convert values to the expected types
+  const convertToDatasetValue = (value: unknown): string | number | boolean => {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return value;
+    }
+    
+    if (typeof value === 'object') {
+      return JSON.stringify(value);
+    }
+    
+    // Convert other types to string
+    return String(value);
   };
 
-  // Transform API response to match our DatasetRow format
-  const transformApiResponse = (data: any[]): DatasetRow[] => {
+  // Optimized transform function
+  const transformApiResponse = useCallback((data: any[]): DatasetRow[] => {
     if (!Array.isArray(data)) {
       throw new Error('API response is not an array');
     }
 
     console.log(`Transforming ${data.length} raw items`);
 
-    // Remove exact duplicates first
-    const uniqueData = data.filter((item, index, self) => 
-      self.findIndex(other => JSON.stringify(other) === JSON.stringify(item)) === index
-    );
+    // Simple deduplication without expensive JSON.stringify
+    const seenItems = new Set<string>();
+    const uniqueData: any[] = [];
+    
+    for (const item of data) {
+      // Create a simple hash instead of full JSON.stringify
+      const hash = Object.keys(item).sort().map(key => `${key}:${item[key]}`).join('|');
+      if (!seenItems.has(hash)) {
+        seenItems.add(hash);
+        uniqueData.push(item);
+      }
+    }
     
     if (uniqueData.length !== data.length) {
-      console.warn(`Removed ${data.length - uniqueData.length} exact duplicate items`);
+      console.warn(`Removed ${data.length - uniqueData.length} duplicate items`);
     }
 
-    const dataWithIds = uniqueData.map((item, index) => {
-      let uniqueId = index + 1;
-      return { ...item, id: uniqueId };
-    });
-
-    const transformedData = dataWithIds.map((item, index) => {
-      const transformedItem: DatasetRow = { id: item.id };
+    // Single pass transformation with proper type conversion
+    const transformedData: DatasetRow[] = uniqueData.map((item, index) => {
+      const transformedItem: DatasetRow = { id: index + 1 };
       
-      Object.keys(item).forEach(key => {
+      for (const [key, value] of Object.entries(item)) {
         if (key !== 'id') {
-          const value = item[key];
-          if (typeof value === 'object' && value !== null) {
-            transformedItem[key] = JSON.stringify(value);
-          } else {
-            transformedItem[key] = value;
-          }
+          transformedItem[key] = convertToDatasetValue(value);
         }
-      });
+      }
 
       return transformedItem;
     });
 
     console.log(`Transformed into ${transformedData.length} unique items`);
     return transformedData;
-  };
-
-  const fetchDataWithRetry = useCallback(async (maxRetries: number = 3): Promise<DatasetRow[]> => {
-    const config = apiConfig();
-    const url = `${config.baseUrl}${config.endpoint}`;
-    const codeFromUrl = getCodeFromUrl();
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`Fetching data from: ${url} with code: ${codeFromUrl} (Attempt ${attempt}/${maxRetries})`);
-        
-        const requestOptions: RequestInit = {
-          method: config.method || 'GET',
-          headers: config.headers,
-          mode: 'cors',
-          credentials: 'omit',
-        };
-
-        if (config.body && config.method === 'POST') {
-          requestOptions.body = JSON.stringify(config.body);
-        }
-
-        const response = await fetch(url, requestOptions);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        const transformData = data.data.dataset ? data.data.dataset : data.data;
-        
-        console.log(`Raw API response structure:`, {
-          hasDataProperty: !!data.data,
-          hasDatasetProperty: !!(data.data && data.data.dataset),
-          transformDataLength: transformData?.length,
-          firstTwoItems: transformData?.slice(0, 2)
-        });
-        
-        const transformedData = transformApiResponse(transformData);
-        
-        const ids = transformedData.map(row => row.id);
-        const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
-        if (duplicateIds.length > 0) {
-          console.warn('Duplicate IDs found after transformation:', duplicateIds);
-        }
-        
-        return transformedData;
-        
-      } catch (error) {
-        console.error(`Attempt ${attempt} failed:`, error);
-        
-        if (attempt === maxRetries) {
-          if (error instanceof TypeError && error.message.includes('CORS')) {
-            throw new Error(`CORS Error: Unable to fetch from ${url}. This may be due to CORS restrictions.`);
-          }
-          throw error;
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-      }
-    }
-    
-    throw new Error('Max retries exceeded');
   }, []);
 
+  const fetchDataWithRetry = useCallback(async (maxRetries: number = 3): Promise<{ dataset: DatasetRow[], overallComment?: string }> => {
+    // Prevent duplicate calls
+    if (isLoadingRef.current) {
+      console.log('Already loading, skipping duplicate call');
+      return { dataset: [], overallComment: '' };
+    }
+
+    isLoadingRef.current = true;
+    
+    try {
+      const config = apiConfig();
+      const url = `${config.baseUrl}${config.endpoint}`;
+      const codeFromUrl = getCodeFromUrl();
+      
+      console.log(`Fetching data from: ${url} with code: ${codeFromUrl}`);
+      
+      const requestOptions: RequestInit = {
+        method: config.method || 'GET',
+        headers: config.headers,
+        mode: 'cors',
+        credentials: 'omit',
+      };
+
+      if (config.body && config.method === 'POST') {
+        requestOptions.body = JSON.stringify(config.body);
+      }
+
+      const response = await fetch(url, requestOptions);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const transformData = data.data.dataset ? data.data.dataset : data.data;
+      const overallComment = data.data.overallComment || '';
+      
+      console.log(`Raw API response structure:`, {
+        hasDataProperty: !!data.data,
+        hasDatasetProperty: !!(data.data && data.data.dataset),
+        transformDataLength: transformData?.length,
+        hasOverallComment: !!overallComment
+      });
+      
+      const transformedData = transformApiResponse(transformData);
+      
+      return { dataset: transformedData, overallComment };
+    } finally {
+      isLoadingRef.current = false;
+    }
+  }, [apiConfig, transformApiResponse]);
+
   const loadDataset = useCallback(async () => {
+    // Prevent duplicate calls if already loaded
+    if (hasLoadedRef.current && dataset.length > 0) {
+      console.log('Dataset already loaded, skipping...');
+      return { dataset, overallComment: '' };
+    }
+
     setLoading(true);
     setError(null);
     
     try {
-      const data = await fetchDataWithRetry(3);
+      const result = await fetchDataWithRetry(3);
       
-      const ids = data.map(row => row.id);
+      const ids = result.dataset.map(row => row.id);
       const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
       if (duplicateIds.length > 0) {
         console.error('CRITICAL: Duplicate IDs in final dataset:', duplicateIds);
       }
       
-      setDataset(data);
-      return data;
+      setDataset(result.dataset);
+      hasLoadedRef.current = true;
+      return result;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       setError(errorMessage);
@@ -167,7 +184,7 @@ export const useDatasetApi = () => {
     }
   }, [fetchDataWithRetry]);
 
-  const saveDataset = useCallback(async (updatedDataset: DatasetRow[]) => {
+  const saveDataset = useCallback(async (updatedDataset: DatasetRow[], overallComment?: string) => {
     setSaving(true);
     
     try {
@@ -181,6 +198,7 @@ export const useDatasetApi = () => {
         body: JSON.stringify({ 
           dataset: updatedDataset,
           fileCode: codeFromUrl,
+          overallComment: overallComment || '',
           clientId: 'test'
         }),
       });
@@ -193,7 +211,7 @@ export const useDatasetApi = () => {
       const result = await response.json();
       setDataset(updatedDataset);
       
-      console.log('All ratings saved successfully:', result);
+      console.log('All ratings and overall comment saved successfully:', result);
       return result;
     } catch (error) {
       console.error('Error saving ratings:', error);
@@ -203,6 +221,15 @@ export const useDatasetApi = () => {
     }
   }, []);
 
+  // Reset function for URL changes
+  const resetDataset = useCallback(() => {
+    hasLoadedRef.current = false;
+    isLoadingRef.current = false;
+    setDataset([]);
+    setLoading(true);
+    setError(null);
+  }, []);
+
   return {
     dataset,
     loading,
@@ -210,6 +237,7 @@ export const useDatasetApi = () => {
     saving,
     loadDataset,
     saveDataset,
+    resetDataset,
     apiConfig
   };
 }; 

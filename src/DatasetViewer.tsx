@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import './DatasetViewer.css';
 import { DatasetRow, RowRating } from './types';
 import { getCodeFromUrl, getRowId } from './utils/urlHelpers';
@@ -6,25 +6,63 @@ import { useDatasetApi } from './hooks/useDatasetApi';
 import ErrorDisplay from './components/ErrorDisplay';
 import PaginationControls from './components/PaginationControls';
 import DatasetTable from './components/DatasetTable';
+import OverallComment from './components/OverallComment';
 
 const DatasetViewer: React.FC = () => {
-  const { dataset, loading, error, saving, loadDataset, saveDataset, apiConfig } = useDatasetApi();
+  const { dataset, loading, error, saving, loadDataset, saveDataset, resetDataset, apiConfig } = useDatasetApi();
   const [columns, setColumns] = useState<string[]>([]);
   const [rowRatings, setRowRatings] = useState<Map<string | number, RowRating>>(new Map());
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+  const [overallComment, setOverallComment] = useState<string>('');
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [itemsPerPage, setItemsPerPage] = useState<number>(5);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
+  // Track if initialization has happened
+  const initializationRef = useRef<boolean>(false);
+  const currentCodeRef = useRef<string>('');
+
+  // Memoize pagination calculations
+  const paginationData = useMemo(() => {
+    const totalItems = dataset.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentPageData = dataset.slice(startIndex, endIndex);
+    
+    return { totalItems, totalPages, startIndex, endIndex, currentPageData };
+  }, [dataset, currentPage, itemsPerPage]);
+
+  // Single useEffect for initialization
   useEffect(() => {
+    const currentCode = getCodeFromUrl();
+    
+    // Check if we need to reload due to code change
+    if (currentCodeRef.current && currentCodeRef.current !== currentCode) {
+      console.log('Dataset code changed, resetting...');
+      resetDataset();
+      initializationRef.current = false;
+    }
+    
+    currentCodeRef.current = currentCode;
+
+    // Prevent duplicate initialization
+    if (initializationRef.current) {
+      console.log('Already initialized, skipping...');
+      return;
+    }
+
+    initializationRef.current = true;
+
     const initializeDataset = async () => {
       try {
-        const data = await loadDataset();
+        console.log('Initializing dataset...');
+        const result = await loadDataset();
         
-        if (data.length > 0) {
+        if (result.dataset.length > 0) {
           // Set up columns
-          const allColumns = Object.keys(data[0]);
+          const allColumns = Object.keys(result.dataset[0]);
           const idColumn = allColumns.find(col => col.toLowerCase() === 'id') || allColumns[0];
           const otherColumns = allColumns.filter(col => 
             col !== idColumn && 
@@ -35,7 +73,7 @@ const DatasetViewer: React.FC = () => {
 
           // Pre-populate rowRatings with existing ratings and comments
           const existingRatings = new Map<string | number, RowRating>();
-          data.forEach((row, index) => {
+          result.dataset.forEach((row, index) => {
             const safeRowId = getRowId(row, index, idColumn);
             const rating = typeof row.rating === 'number' ? row.rating : 0;
             const comment = typeof row.comment === 'string' ? row.comment : '';
@@ -51,20 +89,29 @@ const DatasetViewer: React.FC = () => {
           
           setRowRatings(existingRatings);
         }
+
+        // Set the overall comment from the loaded data
+        if (result.overallComment) {
+          setOverallComment(result.overallComment);
+        }
       } catch (err) {
-        // Error is handled by the hook
+        console.error('Initialization failed:', err);
+        initializationRef.current = false; // Allow retry
       }
     };
 
     initializeDataset();
-  }, [loadDataset]);
+  }, []); // Empty dependency array - only run once on mount
 
-  // Listen for URL changes
+  // Separate effect for URL changes
   useEffect(() => {
     const handlePopState = () => {
+      console.log('URL changed, reloading...');
       setRowRatings(new Map());
       setHasUnsavedChanges(false);
       setCurrentPage(1);
+      setOverallComment('');
+      initializationRef.current = false; // Allow re-initialization
       window.location.reload();
     };
 
@@ -73,6 +120,7 @@ const DatasetViewer: React.FC = () => {
   }, []);
 
   const handleRetry = () => {
+    initializationRef.current = false; // Reset initialization flag
     window.location.reload();
   };
 
@@ -96,9 +144,14 @@ const DatasetViewer: React.FC = () => {
     setHasUnsavedChanges(true);
   };
 
+  const handleOverallCommentChange = (comment: string): void => {
+    setOverallComment(comment);
+    setHasUnsavedChanges(true);
+  };
+
   const handleSaveAll = async (): Promise<void> => {
-    if (rowRatings.size === 0) {
-      alert('No ratings or comments to save.');
+    if (rowRatings.size === 0 && overallComment.trim() === '') {
+      alert('No ratings, comments, or overall comment to save.');
       return;
     }
 
@@ -113,20 +166,13 @@ const DatasetViewer: React.FC = () => {
         return row;
       });
 
-      await saveDataset(updatedDataset);
+      await saveDataset(updatedDataset, overallComment);
       setHasUnsavedChanges(false);
-      alert('All ratings and comments saved successfully!');
+      alert('All ratings, comments, and overall comment saved successfully!');
     } catch (error) {
-      alert(`Failed to save ratings: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(`Failed to save: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
-
-  // Pagination calculations
-  const totalItems = dataset.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentPageData = dataset.slice(startIndex, endIndex);
 
   const handlePageChange = (page: number): void => {
     setCurrentPage(page);
@@ -168,7 +214,7 @@ const DatasetViewer: React.FC = () => {
         <strong>Dataset Code:</strong> <code>{getCodeFromUrl()}</code>
         {process.env.NODE_ENV === 'development' && (
           <div style={{ marginTop: '5px', fontSize: '12px', color: '#6c757d' }}>
-            Debug: {dataset.length} rows loaded, {rowRatings.size} ratings stored
+            Debug: {dataset.length} rows loaded, {rowRatings.size} ratings stored, overall comment: {overallComment.length} chars
           </div>
         )}
       </div>
@@ -191,11 +237,11 @@ const DatasetViewer: React.FC = () => {
       {dataset.length > 0 && (
         <PaginationControls
           currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={totalItems}
+          totalPages={paginationData.totalPages}
+          totalItems={paginationData.totalItems}
           itemsPerPage={itemsPerPage}
-          startIndex={startIndex}
-          endIndex={endIndex}
+          startIndex={paginationData.startIndex}
+          endIndex={paginationData.endIndex}
           onPageChange={handlePageChange}
           onItemsPerPageChange={handleItemsPerPageChange}
         />
@@ -203,29 +249,36 @@ const DatasetViewer: React.FC = () => {
 
       {/* Dataset Table */}
       <DatasetTable
-        data={currentPageData}
+        data={paginationData.currentPageData}
         columns={columns}
         rowRatings={rowRatings}
         onRatingChange={handleRatingChange}
         onCommentChange={handleCommentChange}
         saving={saving}
-        startIndex={startIndex}
+        startIndex={paginationData.startIndex}
       />
 
       {/* Pagination Controls - Bottom */}
-      {dataset.length > 0 && totalPages > 1 && (
+      {dataset.length > 0 && paginationData.totalPages > 1 && (
         <PaginationControls
           currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={totalItems}
+          totalPages={paginationData.totalPages}
+          totalItems={paginationData.totalItems}
           itemsPerPage={itemsPerPage}
-          startIndex={startIndex}
-          endIndex={endIndex}
+          startIndex={paginationData.startIndex}
+          endIndex={paginationData.endIndex}
           onPageChange={handlePageChange}
           onItemsPerPageChange={handleItemsPerPageChange}
           showItemsPerPageSelector={false}
         />
       )}
+
+      {/* Overall Comment Section */}
+      <OverallComment
+        comment={overallComment}
+        onCommentChange={handleOverallCommentChange}
+        disabled={saving}
+      />
 
       {/* Save Button at Bottom */}
       {hasUnsavedChanges && (
@@ -239,7 +292,6 @@ const DatasetViewer: React.FC = () => {
           </button>
         </div>
       )}
-
     </div>
   );
 };
