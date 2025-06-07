@@ -18,9 +18,10 @@ interface PaginatedResponse {
 interface VirtualizedDatasetViewerProps {
   baseUrl?: string;
 }
+const API_BASE_URL = 'https://e7zf4xjf2k.execute-api.us-east-1.amazonaws.com/prod';
 
 const VirtualizedDatasetViewer: React.FC<VirtualizedDatasetViewerProps> = ({ 
-  baseUrl = 'http://localhost:8001' 
+  baseUrl = API_BASE_URL 
 }) => {
   const [dataset, setDataset] = useState<DatasetRow[]>([]);
   const [loading, setLoading] = useState(false);
